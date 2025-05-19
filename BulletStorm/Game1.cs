@@ -13,6 +13,11 @@ namespace BulletStorm
     {
         private GraphicsDeviceManager _graphics;
         private SpriteBatch _spriteBatch;
+        private List<Quest> quests = new();
+        private int projectileHits = 0; // For Sharpshooter quest
+        private double quickDrawTimer = 0; // For Quick Draw quest
+        private int quickDrawKills = 0;
+
 
         // Entities
         private Player player;
@@ -97,6 +102,86 @@ namespace BulletStorm
                 ),
                 portalTexture
             );
+            // Add 10 original quests
+            quests.Add(new Quest(
+                "Slime Slayer",
+                "Kill 20 Slimes (Reward: Thunderbrand)",
+                (lm, p, allWeapons) => lm.EnemiesKilled >= 20,
+                (p, allWeapons, playerWeapons) => {
+                    var w = allWeapons.Find(w => w.Name == "Thunderbrand");
+                    if (w != null && !playerWeapons.Contains(w)) playerWeapons.Add(w);
+                }
+            ));
+            quests.Add(new Quest(
+                "Ogre Breaker",
+                "Kill 10 Ogres (Reward: Venomspike)",
+                (lm, p, allWeapons) => lm.Enemies.FindAll(e => e.Type == EnemyType.Ogre).Count >= 10,
+                (p, allWeapons, playerWeapons) => {
+                    var w = allWeapons.Find(w => w.Name == "Venomspike");
+                    if (w != null && !playerWeapons.Contains(w)) playerWeapons.Add(w);
+                }
+            ));
+            quests.Add(new Quest(
+                "Coin Collector",
+                "Collect 50 Coins (Reward: +2 Max Health)",
+                (lm, p, allWeapons) => p.Coins >= 50,
+                (p, allWeapons, playerWeapons) => p.UpgradeHealth(2)
+            ));
+            quests.Add(new Quest(
+                "Boss Hunter",
+                "Defeat 1 Boss (Reward: Void Cannon)",
+                (lm, p, allWeapons) => lm.Enemies.FindAll(e => e.Type == EnemyType.OgreBoss || e.Type == EnemyType.VampiroBoss).Count == 0 && lm.BossSpawned,
+                (p, allWeapons, playerWeapons) => {
+                    var w = allWeapons.Find(w => w.Name == "Void Cannon");
+                    if (w != null && !playerWeapons.Contains(w)) playerWeapons.Add(w);
+                }
+            ));
+            quests.Add(new Quest(
+                "Untouchable",
+                "Survive a phase without taking damage (Reward: +0.2 Attack Speed)",
+                (lm, p, allWeapons) => p.Health == p.MaxHealth && currentPhase == Phase.LevelComplete,
+                (p, allWeapons, playerWeapons) => p.UpgradeAttackSpeed(0.2f)
+            ));
+            quests.Add(new Quest(
+                "Sharpshooter",
+                "Land 30 projectile hits (Reward: Star Piercer)",
+                (lm, p, allWeapons) => projectileHits >= 30,
+                (p, allWeapons, playerWeapons) => {
+                    var w = allWeapons.Find(w => w.Name == "Star Piercer");
+                    if (w != null && !playerWeapons.Contains(w)) playerWeapons.Add(w);
+                }
+            ));
+            quests.Add(new Quest(
+                "Quick Draw",
+                "Kill 10 enemies in 30 seconds (Reward: +20 Move Speed)",
+                (lm, p, allWeapons) => quickDrawKills >= 10,
+                (p, allWeapons, playerWeapons) => p.UpgradeSpeed(20f)
+            ));
+            quests.Add(new Quest(
+                "Vampire Vanquisher",
+                "Kill 15 Vampiro or VampiroWarrior (Reward: Celestial Katana)",
+                (lm, p, allWeapons) => lm.Enemies.FindAll(e => e.Type == EnemyType.Vampiro || e.Type == EnemyType.VampiroWarrior).Count >= 15,
+                (p, allWeapons, playerWeapons) => {
+                    var w = allWeapons.Find(w => w.Name == "Celestial Katana");
+                    if (w != null && !playerWeapons.Contains(w)) playerWeapons.Add(w);
+                }
+            ));
+            quests.Add(new Quest(
+                "Wealth Hoarder",
+                "Have 100 coins at once (Reward: +20 Coin Pickup Range)",
+                (lm, p, allWeapons) => p.Coins >= 100,
+                (p, allWeapons, playerWeapons) => p.UpgradeCoinPickupRange(20f)
+            ));
+            quests.Add(new Quest(
+                "Master of Arms",
+                "Unlock 5 different weapons (Reward: Shadow Reaver)",
+                (lm, p, allWeapons) => playerWeapons.Count >= 5,
+                (p, allWeapons, playerWeapons) => {
+                    var w = allWeapons.Find(w => w.Name == "Shadow Reaver");
+                    if (w != null && !playerWeapons.Contains(w)) playerWeapons.Add(w);
+                }
+            ));
+
         }
 
         protected override void Update(GameTime gameTime)
