@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -13,19 +14,29 @@ namespace BulletStorm
         private GraphicsDeviceManager _graphics;
         private SpriteBatch _spriteBatch;
 
-        // Entidades principais
+        // Entities
         private Player player;
         private Texture2D playerTexture;
         private Texture2D enemyTexture;
         private Texture2D projectileTexture;
         private Texture2D portalTexture;
-        private Texture2D coinTexture; // Add a texture for coins
+        private Texture2D coinTexture;
+
+        // Weapon textures
+        private Texture2D[] swordTextures = new Texture2D[7];
+        private Texture2D[] gunTextures = new Texture2D[3];
+
+        // Weapons and projectiles
+        private List<Weapon> weapons = new();
+        private List<Weapon> playerWeapons = new();
+        private List<PlayerProjectile> playerProjectiles = new();
+
         private Portal portal;
 
-        // Gerenciador de níveis
+        // Level manager
         private LevelManager levelManager = new();
 
-        // Estado do jogo
+        // Game state
         private GameState.GameState currentState = GameState.GameState.SafeHouse;
         private Phase currentPhase = Phase.Phase1;
 
@@ -55,16 +66,29 @@ namespace BulletStorm
             portalTexture = new Texture2D(GraphicsDevice, 1, 1);
             portalTexture.SetData(new[] { Color.Black });
 
-            coinTexture = new Texture2D(GraphicsDevice, 1, 1); // Simple placeholder
+            coinTexture = new Texture2D(GraphicsDevice, 1, 1);
             coinTexture.SetData(new[] { Color.Gold });
 
-            // Inicializa o player no centro
+            // Load weapon textures (replace with your actual asset names)
+            for (int i = 0; i < 7; i++)
+                swordTextures[i] = Content.Load<Texture2D>($"sword{i + 1}");
+            for (int i = 0; i < 3; i++)
+                gunTextures[i] = Content.Load<Texture2D>($"gun{i + 1}");
+
+            // Create all weapons
+            weapons = Weapon.CreateAllWeapons(swordTextures, gunTextures);
+
+            // Player starts with the three basic weapons
+            playerWeapons.Add(weapons[0]); // Blaze Edge
+            playerWeapons.Add(weapons[1]); // Frostbite Saber
+            playerWeapons.Add(weapons[2]); // Pulse Blaster
+
+            // Initialize player in the center
             player = new Player(new Vector2(
                 GraphicsDevice.Viewport.Width / 2f - playerTexture.Width / 2f,
                 GraphicsDevice.Viewport.Height / 2f - playerTexture.Height / 2f
             ));
 
-            // Inicializa o portal (posição será definida ao fim do nível)
             portal = new Portal(
                 new Rectangle(
                     (int)(GraphicsDevice.Viewport.Width / 2 - 32),
@@ -95,7 +119,7 @@ namespace BulletStorm
                     break;
             }
 
-            // --- COIN PICKUP LOGIC ---
+            // Coin pickup logic
             for (int i = levelManager.Coins.Count - 1; i >= 0; i--)
             {
                 var coin = levelManager.Coins[i];
@@ -108,7 +132,69 @@ namespace BulletStorm
                     player.Coins += coin.Value;
                     coin.Collected = true;
                     levelManager.Coins.RemoveAt(i);
-                    // Optionally: play sound or show effect
+                }
+            }
+
+            // --- Weapon orbit and firing logic ---
+            foreach (var weapon in playerWeapons)
+            {
+                weapon.Update(player.Position, (float)gameTime.ElapsedGameTime.TotalSeconds);
+
+                weapon.FireTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
+                float fireInterval = 1f / weapon.FireRate;
+
+                if (weapon.FireTimer >= fireInterval)
+                {
+                    // Find nearest enemy
+                    Enemy nearest = null;
+                    float minDist = float.MaxValue;
+                    foreach (var enemy in levelManager.Enemies)
+                    {
+                        if (!enemy.IsAlive) continue;
+                        float dist = Vector2.Distance(player.Position + weapon.Offset, enemy.Position + new Vector2(enemy.Size / 2, enemy.Size / 2));
+                        if (dist < minDist)
+                        {
+                            minDist = dist;
+                            nearest = enemy;
+                        }
+                    }
+
+                    if (nearest != null)
+                    {
+                        Vector2 firePos = player.Position + weapon.Offset;
+                        Vector2 target = nearest.Position + new Vector2(nearest.Size / 2, nearest.Size / 2);
+                        Vector2 direction = target - firePos;
+                        if (direction != Vector2.Zero)
+                            direction.Normalize();
+
+                        playerProjectiles.Add(new PlayerProjectile(
+                            firePos,
+                            direction,
+                            weapon.ProjectileSpeed,
+                            weapon.Damage,
+                            weapon.CritChance,
+                            weapon.EffectDuration,
+                            weapon.EffectDescription,
+                            weapon.OnHitEffect
+                        ));
+                    }
+                    weapon.FireTimer = 0f;
+                }
+            }
+
+            // --- Update and collision for player projectiles ---
+            for (int i = playerProjectiles.Count - 1; i >= 0; i--)
+            {
+                var proj = playerProjectiles[i];
+                proj.Update(gameTime);
+                proj.CheckCollisionWithEnemies(levelManager.Enemies, random);
+
+                // Remove if not active or off-screen
+                if (!proj.IsActive ||
+                    proj.Position.X < -proj.Size || proj.Position.X > GraphicsDevice.Viewport.Width + proj.Size ||
+                    proj.Position.Y < -proj.Size || proj.Position.Y > GraphicsDevice.Viewport.Height + proj.Size)
+                {
+                    playerProjectiles.RemoveAt(i);
                 }
             }
 
@@ -121,18 +207,16 @@ namespace BulletStorm
             levelManager.EnemiesKilled = 0;
             levelManager.Phase3Kills = 0;
             levelManager.BossSpawned = false;
-            levelManager.Coins.Clear(); // Clear coins when entering safe house
+            levelManager.Coins.Clear();
             portal.Active = false;
             currentPhase = Phase.Phase1;
 
-            // Enter para começar o nível atual
             if (Keyboard.GetState().IsKeyDown(Keys.Enter))
             {
                 currentState = GameState.GameState.CombatPhase1;
                 currentPhase = Phase.Phase1;
             }
 
-            // Se portal está ativo, permite trocar de nível
             if (portal.Active)
             {
                 if (Keyboard.GetState().IsKeyDown(Keys.N))
@@ -164,14 +248,11 @@ namespace BulletStorm
                     }
                     for (int i = levelManager.Enemies.Count - 1; i >= 0; i--)
                     {
-                        // Advanced AI and boss minion spawning
                         levelManager.Enemies[i].Update(player.Position, gameTime, projectileTexture, levelManager.Enemies);
                         if (!levelManager.Enemies[i].IsAlive)
                         {
-                            // --- COIN DROP LOGIC ---
                             for (int c = 0; c < levelManager.Enemies[i].CoinsDropped; c++)
                             {
-                                // Spread coins a bit randomly
                                 Vector2 coinPos = levelManager.Enemies[i].Position + new Vector2(random.Next(-8, 8), random.Next(-8, 8));
                                 levelManager.Coins.Add(new Coin(coinPos));
                             }
@@ -211,11 +292,9 @@ namespace BulletStorm
                         }
                         for (int i = levelManager.Enemies.Count - 1; i >= 0; i--)
                         {
-                            // Advanced AI and boss minion spawning
                             levelManager.Enemies[i].Update(player.Position, gameTime, projectileTexture, levelManager.Enemies);
                             if (!levelManager.Enemies[i].IsAlive)
                             {
-                                // --- COIN DROP LOGIC ---
                                 for (int c = 0; c < levelManager.Enemies[i].CoinsDropped; c++)
                                 {
                                     Vector2 coinPos = levelManager.Enemies[i].Position + new Vector2(random.Next(-8, 8), random.Next(-8, 8));
@@ -237,7 +316,6 @@ namespace BulletStorm
                     {
                         for (int i = levelManager.Enemies.Count - 1; i >= 0; i--)
                         {
-                            // Advanced AI and boss minion spawning
                             levelManager.Enemies[i].Update(player.Position, gameTime, projectileTexture, levelManager.Enemies);
                             if (!levelManager.Enemies[i].IsAlive)
                             {
@@ -299,7 +377,6 @@ namespace BulletStorm
             player.Move(movement, delta, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height, playerTexture.Width, playerTexture.Height);
         }
 
-        // Usa o LevelManager e Phase para decidir o tipo de inimigo a spawnar
         private void SpawnRandomEnemy()
         {
             EnemyType[] types;
@@ -360,10 +437,15 @@ namespace BulletStorm
 
             player.Draw(_spriteBatch, playerTexture);
 
+            foreach (var weapon in playerWeapons)
+                weapon.Draw(_spriteBatch, player.Position);
+
+            foreach (var proj in playerProjectiles)
+                proj.Draw(_spriteBatch, projectileTexture);
+
             foreach (var enemy in levelManager.Enemies)
                 enemy.Draw(_spriteBatch, enemyTexture, projectileTexture);
 
-            // Draw coins
             foreach (var coin in levelManager.Coins)
                 coin.Draw(_spriteBatch, coinTexture);
 
