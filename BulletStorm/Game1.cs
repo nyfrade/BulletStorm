@@ -6,11 +6,15 @@ using Microsoft.Xna.Framework.Input;
 using BulletStorm.Entities;
 using BulletStorm.Managers;
 using BulletStorm.GameState;
+using BulletStorm.Map;
 
 namespace BulletStorm
 {
     public class Game1 : Game
     {
+        private Map.ProceduralMapGenerator mapGenerator;
+        private Dictionary<TileType, Texture2D> tileTextures;
+
         private GraphicsDeviceManager _graphics;
         private SpriteBatch _spriteBatch;
 
@@ -54,6 +58,19 @@ namespace BulletStorm
 
         protected override void LoadContent()
         {
+            // Carregue as texturas dos tiles
+            tileTextures = new Dictionary<TileType, Texture2D>
+            {
+                [TileType.Grass] = Content.Load<Texture2D>("grass"), // Adapte para o nome do seu asset
+                [TileType.Tree] = Content.Load<Texture2D>("tree"),
+                [TileType.Bush] = Content.Load<Texture2D>("bush"),
+                [TileType.Rock] = Content.Load<Texture2D>("rock"),
+                // ...adicione os restantes
+            };
+
+            // Gere o mapa procedural
+            mapGenerator = new Map.ProceduralMapGenerator(30, 20);
+            mapGenerator.Generate();
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
             playerTexture = Content.Load<Texture2D>("player");
@@ -434,6 +451,18 @@ namespace BulletStorm
             GraphicsDevice.Clear(Color.CornflowerBlue);
 
             _spriteBatch.Begin();
+            // Desenhe o mapa procedural
+            for (int x = 0; x < mapGenerator.Width; x++)
+            {
+                for (int y = 0; y < mapGenerator.Height; y++)
+                {
+                    var tile = mapGenerator.Tiles[x, y];
+                    if (tile.Type != TileType.Empty)
+                    {
+                        _spriteBatch.Draw(tileTextures[tile.Type], tile.Position, Color.White);
+                    }
+                }
+            }
 
             player.Draw(_spriteBatch, playerTexture);
 
