@@ -13,12 +13,26 @@ namespace BulletStorm.Entities
 
         // --- Player Stats ---
         public int Coins = 0;
-        public float AttackSpeed = 1.0f;         // Attacks per second
-        public float AttackCritChance = 0.1f;    // 10% crit chance (0.0 - 1.0)
-        public int AttackDamage = 1;             // Base damage
-        public float CoinPickupRange = 40f;      // Pixels
+        public float AttackSpeed = 1.0f;
+        public float AttackCritChance = 0.1f;
+        public int AttackDamage = 1;
+        public float CoinPickupRange = 40f;
 
         public bool IsAlive => Health > 0;
+
+        // --- Animação ---
+        private int currentFrame = 0;
+        private float animationTimer = 0f;
+        private float frameTime = 0.12f; // tempo de cada frame em segundos
+        private static readonly Rectangle[] walkDownFrames = new Rectangle[]
+        {
+            new Rectangle(24, 23, 15, 24),
+            new Rectangle(88, 21, 15, 26),
+            new Rectangle(152, 22, 15, 25),
+            new Rectangle(216, 23, 15, 24),
+            new Rectangle(280, 21, 15, 26),
+            new Rectangle(344, 22, 15, 25)
+        };
 
         public Player(Vector2 startPosition)
         {
@@ -35,7 +49,22 @@ namespace BulletStorm.Entities
         public void Move(Vector2 direction, float delta, int maxWidth, int maxHeight, int spriteWidth, int spriteHeight)
         {
             if (direction != Vector2.Zero)
+            {
                 direction.Normalize();
+                // Atualiza animação apenas se estiver se movendo
+                animationTimer += delta;
+                if (animationTimer >= frameTime)
+                {
+                    currentFrame = (currentFrame + 1) % walkDownFrames.Length;
+                    animationTimer = 0f;
+                }
+            }
+            else
+            {
+                // Se parado, volta para o primeiro frame
+                currentFrame = 0;
+                animationTimer = 0f;
+            }
 
             Position += direction * Speed * delta;
             Position.X = Math.Clamp(Position.X, 0, maxWidth - spriteWidth);
@@ -65,7 +94,22 @@ namespace BulletStorm.Entities
         public void Draw(SpriteBatch spriteBatch, Texture2D texture)
         {
             if (IsAlive)
-                spriteBatch.Draw(texture, Position, Color.White);
+            {
+                // Desenha o frame atual da animação de andar para baixo
+                float scale = 2f; // Altere para o tamanho desejado
+                spriteBatch.Draw(
+                    texture,
+                    Position,
+                    walkDownFrames[currentFrame],
+                    Color.White,
+                    0f,
+                    Vector2.Zero,
+                    scale,
+                    SpriteEffects.None,
+                    0f
+                );
+            }
         }
     }
 }
+

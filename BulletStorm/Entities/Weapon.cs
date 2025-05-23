@@ -81,7 +81,7 @@ namespace BulletStorm.Entities
                 EffectDescription = ""
             });
 
-            weapons.Add(new Weapon("Frostbite Saber", WeaponType.Sword, swordTextures[1], MathF.PI * 2 / 7)
+            weapons.Add(new Weapon("Frostbite Saber", WeaponType.Sword, swordTextures[1], MathF.PI * 2 / 6)
             {
                 Rarity = WeaponRarity.B,
                 OrbitRadius = 45f,
@@ -106,7 +106,7 @@ namespace BulletStorm.Entities
             });
 
             // --- ADVANCED SWORDS ---
-            weapons.Add(new Weapon("Thunderbrand", WeaponType.Sword, swordTextures[2], MathF.PI * 4 / 7)
+            weapons.Add(new Weapon("Thunderbrand", WeaponType.Sword, swordTextures[2], MathF.PI * 4 / 6)
             {
                 Rarity = WeaponRarity.A,
                 OrbitRadius = 50f,
@@ -118,7 +118,7 @@ namespace BulletStorm.Entities
                 EffectDescription = "Chance to stun for 0.5s"
             });
 
-            weapons.Add(new Weapon("Venomspike", WeaponType.Sword, swordTextures[3], MathF.PI * 6 / 7)
+            weapons.Add(new Weapon("Venomspike", WeaponType.Sword, swordTextures[3], MathF.PI * 6 / 6)
             {
                 Rarity = WeaponRarity.S,
                 OrbitRadius = 55f,
@@ -154,18 +154,6 @@ namespace BulletStorm.Entities
                 EffectDescription = "Steals a small amount of health"
             });
 
-            weapons.Add(new Weapon("Radiant Claymore", WeaponType.Sword, swordTextures[6], MathF.PI * 12 / 7)
-            {
-                Rarity = WeaponRarity.A,
-                OrbitRadius = 70f,
-                FireRate = 0.8f,
-                Damage = 6,
-                ProjectileSpeed = 390f,
-                CritChance = 0.10f,
-                EffectDuration = 1.0f,
-                EffectDescription = "Blinds enemies (reduces their speed)"
-            });
-
             // --- ADVANCED GUNS ---
             weapons.Add(new Weapon("Void Cannon", WeaponType.Gun, gunTextures[1], MathF.PI * 4 / 3)
             {
@@ -193,6 +181,7 @@ namespace BulletStorm.Entities
 
             return weapons;
         }
+
     }
 }
 
