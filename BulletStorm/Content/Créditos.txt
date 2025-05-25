@@ -1,0 +1,30 @@
+Créditos
+
+Desenvolvedores:
+Anthony Frade
+Valezka Naia
+
+Áudio:
+Efeitos sonoros por Karim Nessim (Pixabay)
+Música de fundo por Maksym Dudchyk (Pixabay)
+
+Imagens (Spritesheets):
+Inimigos:
+
+Free Slime Mobs - Pixel Art Top-Down (CraftPix)
+
+Free Top-Down Orc Game Character (CraftPix)
+
+Free Vampire 4-Direction Character (CraftPix)
+
+Personagem principal (jogador):
+
+Free Base 4-Direction Female Character (CraftPix)
+
+Armas:
+
+Sprites de armas obtidos em recursos livres no CraftPix
+
+Background:
+https://thatsmrdo.itch.io/emberwild-terrain-pack
+https://grumpydiamond.itch.io/small-grass-tileset-16x16

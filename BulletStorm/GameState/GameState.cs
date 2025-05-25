@@ -1,12 +1,13 @@
 ﻿namespace BulletStorm.GameState
 {
     // Enum representing the different states of the game
-    public enum GameState
+    public enum Gamestate
     {
-        SafeHouse,      // Hub area
-        CombatPhase1,   // First combat phase
-        WeaponChoice,   // Upgrade/shop phase
-        CombatPhase3,   // Boss or advanced combat
-        LevelComplete   // End of level
+        Phase1,
+        Phase2, // NOVA
+        Phase3, // NOVA
+        Phase4, // NOVA
+        Phase5, // NOVA (boss)
+        LevelComplete
     }
 }

@@ -3,70 +3,100 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using Microsoft.Xna.Framework.Media; 
 using BulletStorm.Entities;
 using BulletStorm.Managers;
 using BulletStorm.GameState;
 using Teste;
+using System.IO;
+
 
 
 namespace BulletStorm
 {
     public class Game1 : Game
     {
-     
         private GraphicsDeviceManager _graphics;
         private SpriteBatch _spriteBatch;
         private GameplayScreen _gameplayScreen;
+        private string[] creditLines;
 
-        private List<Quest> quests = new();
-        private int projectileHits = 0; // For Sharpshooter quest
-        private double quickDrawTimer = 0; // For Quick Draw quest
-        private int quickDrawKills = 0;
+        Song song;
 
+        // --- MENU E SCORES ---
+        private enum MainMenuState { Menu, InputName, Playing, Scores, Credits }
+        private MainMenuState menuState = MainMenuState.Menu;
+        private MouseState previousMouseState;
+        private int selectedMenuIndex = 0;
+        private string[] menuOptions = new[] { "Start", "Scores", "Creditos" };
+        private string sessionName = "";
+        private string inputSessionName = "";
+        private List<(string Name, int Score, int Enemies, int Time)> scores = new();
+        private bool showInputCursor = true;
+        private double cursorBlinkTimer = 0;
+
+        private double gameTimer = 0;      // Timer que reinicia ao morrer
+        private double sessionTimer = 0;   // Timer da sessão inteira
+
+        private KeyboardState previousKeyboardState;
 
         // Entities
         private Player player;
         private Texture2D playerTexture;
         private Texture2D enemyTexture;
-        private Texture2D projectileTexture;
-        private Texture2D portalTexture;
-        private Texture2D coinTexture;
 
-        // Weapon textures
+        // Apenas espadas
         private Texture2D[] swordTextures = new Texture2D[6];
-        private Texture2D[] gunTextures = new Texture2D[3];
 
-        // Weapons and projectiles
+        // Weapons
         private List<Weapon> weapons = new();
         private List<Weapon> playerWeapons = new();
-        private List<PlayerProjectile> playerProjectiles = new();
+        private List<SwordProjectile> swordProjectiles = new();
+        private Microsoft.Xna.Framework.Audio.SoundEffect swordSound;
 
-        private Portal portal;
+        //mensagens
+        private float phaseMessageTimer = 3.0f;
+        private string phaseMessage = "Fase 1";
+        private bool showPhaseMessage = true;
 
         // Level manager
         private LevelManager levelManager = new();
 
         // Game state
-        private GameState.GameState currentState = GameState.GameState.SafeHouse;
+        private Gamestate currentState = Gamestate.Phase1;
         private Phase currentPhase = Phase.Phase1;
+        private int phase1Kills = 0;
+        private int phase2Kills = 0;
+        private bool boostFase3Aplicado = false;
+
+
 
         // Spawn
         private Random random = new();
         private float spawnTimer = 0f;
         private float spawnInterval = 1.0f;
 
+        // Mensagem de boost
+        private string boostMessage = "";
+        private double boostMessageTimer = 0;
+
+        //arama enemigo 
+        private Texture2D projectileTexture;
+
+        // Fim de jogo
+        private bool gameEnded = false;
+
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
+            Window.AllowUserResizing = true; // Permite redimensionar a janela
         }
-
         protected override void Initialize()
         {
-            // TODO: Add your initialization logic here
-            _graphics.PreferredBackBufferWidth = 800;  // largura desejada
-            _graphics.PreferredBackBufferHeight = 600; // altura desejada
+            _graphics.PreferredBackBufferWidth = 800;
+            _graphics.PreferredBackBufferHeight = 600;
             _graphics.ApplyChanges();
 
             base.Initialize();
@@ -74,267 +104,456 @@ namespace BulletStorm
 
         protected override void LoadContent()
         {
-            
             _spriteBatch = new SpriteBatch(GraphicsDevice);
+
+            song = Content.Load<Song>("background-music");
+            MediaPlayer.Play(song);
+            MediaPlayer.IsRepeating = true;
+
             _gameplayScreen = new GameplayScreen();
             _gameplayScreen.LoadContent(Content, GraphicsDevice);
 
             playerTexture = Content.Load<Texture2D>("Unarmed_Walk_full");
+            Enemy.SetOgreSpriteSheet(Content.Load<Texture2D>("orc1_walk_full"));
+            Enemy.SetSlimeSpriteSheet(Content.Load<Texture2D>("Slime1_Walk_full"));
+            Enemy.SetSlimeFogoSpriteSheet(Content.Load<Texture2D>("Slime3_Walk_full"));
+            Enemy.SetOgreSpriteSheet(Content.Load<Texture2D>("orc1_walk_full"));
+            Enemy.SetOgreBossSpriteSheet(Content.Load<Texture2D>("orc3_walk_full"));
+            Enemy.SetVampiroSpriteSheet(Content.Load<Texture2D>("Vampires1_Walk_full"));
+            Enemy.SetVampiroBossSpriteSheet(Content.Load<Texture2D>("Vampires3_Walk_full"));
+
             enemyTexture = new Texture2D(GraphicsDevice, 1, 1);
             enemyTexture.SetData(new[] { Color.White });
 
-            projectileTexture = new Texture2D(GraphicsDevice, 1, 1);
-            projectileTexture.SetData(new[] { Color.White });
+            // Carregue a textura do projétil
+            projectileTexture = Content.Load<Texture2D>("Bullet");
 
-            portalTexture = new Texture2D(GraphicsDevice, 1, 1);
-            portalTexture.SetData(new[] { Color.Black });
-
-            coinTexture = new Texture2D(GraphicsDevice, 1, 1);
-            coinTexture.SetData(new[] { Color.Gold });
-
-            // Load weapon textures (replace with your actual asset names)
+            // Carrega apenas texturas de espada
             for (int i = 0; i < swordTextures.Length; i++)
-                swordTextures[i] = Content.Load<Texture2D>($"sword{i+1}"); 
-            for (int i = 0; i < gunTextures.Length; i++)
-                gunTextures[i] = Content.Load<Texture2D>($"Gun{i+1}");
+                swordTextures[i] = Content.Load<Texture2D>($"sword{i + 1}");
 
-            // Create all weapons
-            weapons = Weapon.CreateAllWeapons(swordTextures, gunTextures);
+            // Cria apenas armas de espada
+            weapons = Weapon.CreateAllWeapons(swordTextures);
 
-            // Player starts with the three basic weapons
-            playerWeapons.Add(weapons[0]); // Blaze Edge
-            playerWeapons.Add(weapons[1]); // Frostbite Saber
-            playerWeapons.Add(weapons[2]); // Pulse Blaster
+            // Player começa com apenas uma espada
+            playerWeapons.Add(weapons[0]);
 
-            // Initialize player in the center
+            // Inicializa player no centro
             player = new Player(new Vector2(
                 GraphicsDevice.Viewport.Width / 2f - playerTexture.Width / 2f,
                 GraphicsDevice.Viewport.Height / 2f - playerTexture.Height / 2f
             ));
+            swordSound = Content.Load<Microsoft.Xna.Framework.Audio.SoundEffect>("sword-sound");
 
-            portal = new Portal(
-                new Rectangle(
-                    (int)(GraphicsDevice.Viewport.Width / 2 - 32),
-                    (int)(GraphicsDevice.Viewport.Height / 2 - 32),
-                    64, 64
-                ),
-                portalTexture
-            );
-            // Add 10 original quests
-          /*  quests.Add(new Quest(
-                "Slime Slayer",
-                "Kill 20 Slimes (Reward: Thunderbrand)",
-                (lm, p, allWeapons) => lm.EnemiesKilled >= 20,
-                (p, allWeapons, playerWeapons) => {
-                    var w = allWeapons.Find(w => w.Name == "Thunderbrand");
-                    if (w != null && !playerWeapons.Contains(w)) playerWeapons.Add(w);
-                }
-            ));
-            quests.Add(new Quest(
-                "Ogre Breaker",
-                "Kill 10 Ogres (Reward: Venomspike)",
-                (lm, p, allWeapons) => lm.Enemies.FindAll(e => e.Type == EnemyType.Ogre).Count >= 10,
-                (p, allWeapons, playerWeapons) => {
-                    var w = allWeapons.Find(w => w.Name == "Venomspike");
-                    if (w != null && !playerWeapons.Contains(w)) playerWeapons.Add(w);
-                }
-            ));
-            quests.Add(new Quest(
-                "Coin Collector",
-                "Collect 50 Coins (Reward: +2 Max Health)",
-                (lm, p, allWeapons) => p.Coins >= 50,
-                (p, allWeapons, playerWeapons) => p.UpgradeHealth(2)
-            ));
-            quests.Add(new Quest(
-                "Boss Hunter",
-                "Defeat 1 Boss (Reward: Void Cannon)",
-                (lm, p, allWeapons) => lm.Enemies.FindAll(e => e.Type == EnemyType.OgreBoss || e.Type == EnemyType.VampiroBoss).Count == 0 && lm.BossSpawned,
-                (p, allWeapons, playerWeapons) => {
-                    var w = allWeapons.Find(w => w.Name == "Void Cannon");
-                    if (w != null && !playerWeapons.Contains(w)) playerWeapons.Add(w);
-                }
-            ));
-            quests.Add(new Quest(
-                "Untouchable",
-                "Survive a phase without taking damage (Reward: +0.2 Attack Speed)",
-                (lm, p, allWeapons) => p.Health == p.MaxHealth && currentPhase == Phase.LevelComplete,
-                (p, allWeapons, playerWeapons) => p.UpgradeAttackSpeed(0.2f)
-            ));
-            quests.Add(new Quest(
-                "Sharpshooter",
-                "Land 30 projectile hits (Reward: Star Piercer)",
-                (lm, p, allWeapons) => projectileHits >= 30,
-                (p, allWeapons, playerWeapons) => {
-                    var w = allWeapons.Find(w => w.Name == "Star Piercer");
-                    if (w != null && !playerWeapons.Contains(w)) playerWeapons.Add(w);
-                }
-            ));
-            quests.Add(new Quest(
-                "Quick Draw",
-                "Kill 10 enemies in 30 seconds (Reward: +20 Move Speed)",
-                (lm, p, allWeapons) => quickDrawKills >= 10,
-                (p, allWeapons, playerWeapons) => p.UpgradeSpeed(20f)
-            ));
-            quests.Add(new Quest(
-                "Vampire Vanquisher",
-                "Kill 15 Vampiro or VampiroWarrior (Reward: Celestial Katana)",
-                (lm, p, allWeapons) => lm.Enemies.FindAll(e => e.Type == EnemyType.Vampiro || e.Type == EnemyType.VampiroWarrior).Count >= 15,
-                (p, allWeapons, playerWeapons) => {
-                    var w = allWeapons.Find(w => w.Name == "Celestial Katana");
-                    if (w != null && !playerWeapons.Contains(w)) playerWeapons.Add(w);
-                }
-            ));
-            quests.Add(new Quest(
-                "Wealth Hoarder",
-                "Have 100 coins at once (Reward: +20 Coin Pickup Range)",
-                (lm, p, allWeapons) => p.Coins >= 100,
-                (p, allWeapons, playerWeapons) => p.UpgradeCoinPickupRange(20f)
-            ));
-            quests.Add(new Quest(
-                "Master of Arms",
-                "Unlock 5 different weapons (Reward: Shadow Reaver)",
-                (lm, p, allWeapons) => playerWeapons.Count >= 5,
-                (p, allWeapons, playerWeapons) => {
-                    var w = allWeapons.Find(w => w.Name == "Shadow Reaver");
-                    if (w != null && !playerWeapons.Contains(w)) playerWeapons.Add(w);
-                }
-            ));*/
+            // Substitua a inicialização de creditLines no LoadContent por:
+            creditLines = new[]
+            {
+                "Desenvolvedores:",
+                "Anthony Frade",
+                "Valezka Naia",
+                "",
+                "Audio:",
+                "Efeitos sonoros por Karim Nessim (Pixabay)",
+                "Musica de fundo por Maksym Dudchyk (Pixabay)",
+                "",
+                "Imagens (Spritesheets):",
+                "Inimigos:",
+                "Free Slime Mobs - Pixel Art Top-Down (CraftPix)",
+                "Free Top-Down Orc Game Character (CraftPix)",
+                "Free Vampire 4-Direction Character (CraftPix)",
+                "",
+                "Personagem principal (jogador):",
+                "Free Base 4-Direction Female Character (CraftPix)",
+                "",
+                "Armas:",
+                "Sprites de armas obtidos em recursos livres no CraftPix",
+                "",
+                "Background:",
+                "Emberwild-terrain-pack (itch.io)",
+                "Small-grass-tileset (itch.io)"
+            };
 
         }
 
         protected override void Update(GameTime gameTime)
         {
+            KeyboardState currentKeyboardState = Keyboard.GetState();
+            MouseState currentMouseState = Mouse.GetState();
+            // Lançar espada ao pressionar Space
+            if (currentKeyboardState.IsKeyDown(Keys.Space) && previousKeyboardState.IsKeyUp(Keys.Space) && playerWeapons.Count > 0)
+            {
+                // Encontra o inimigo mais próximo
+                Enemy nearestEnemy = null;
+                float minDist = float.MaxValue;
+                foreach (var enemy in levelManager.Enemies)
+                {
+                    if (!enemy.IsAlive) continue;
+                    float dist = Vector2.Distance(player.Position, enemy.Position);
+                    if (dist < minDist)
+                    {
+                        minDist = dist;
+                        nearestEnemy = enemy;
+                    }
+                }
+
+                if (nearestEnemy != null)
+                {
+                    // Usa a primeira espada do player
+                    var weapon = playerWeapons[0];
+                    Vector2 direction = nearestEnemy.Position - player.Position;
+                    if (direction != Vector2.Zero)
+                        direction.Normalize();
+
+                    float speed = 400f; // Velocidade do projétil
+                    var proj = new SwordProjectile(
+                        player.Position + weapon.Offset, // posição inicial
+                        direction * speed,
+                        weapon.Texture,
+                        weapon.Damage
+                    );
+                    swordProjectiles.Add(proj);
+                    swordSound?.Play();
+
+
+                    // Remove a espada lançada do orbit 
+                    // playerWeapons.RemoveAt(0);
+                }
+            }
+
+
+
+            // Sempre permite F11 para fullscreen, independente do estado do menu
+            if (currentKeyboardState.IsKeyDown(Keys.F11) && previousKeyboardState.IsKeyUp(Keys.F11))
+            {
+                _graphics.IsFullScreen = !_graphics.IsFullScreen;
+
+                if (_graphics.IsFullScreen)
+                {
+                    var screenWidth = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
+                    var screenHeight = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
+                    _graphics.PreferredBackBufferWidth = screenWidth;
+                    _graphics.PreferredBackBufferHeight = screenHeight;
+                }
+                else
+                {
+                    _graphics.PreferredBackBufferWidth = 800;
+                    _graphics.PreferredBackBufferHeight = 600;
+                }
+
+                _graphics.ApplyChanges();
+            }
+
+            // MENU PRINCIPAL
+            if (menuState == MainMenuState.Menu)
+            {
+                // Navegação por teclado
+                if (currentKeyboardState.IsKeyDown(Keys.Down) && previousKeyboardState.IsKeyUp(Keys.Down))
+                    selectedMenuIndex = (selectedMenuIndex + 1) % menuOptions.Length;
+                if (currentKeyboardState.IsKeyDown(Keys.Up) && previousKeyboardState.IsKeyUp(Keys.Up))
+                    selectedMenuIndex = (selectedMenuIndex - 1 + menuOptions.Length) % menuOptions.Length;
+
+                // Clique do mouse
+                for (int i = 0; i < menuOptions.Length; i++)
+                {
+                    Rectangle rect = new Rectangle(
+                        GraphicsDevice.Viewport.Width / 2 - 100,
+                        150 + i * 60,
+                        200,
+                        50
+                    );
+
+                    if (rect.Contains(currentMouseState.Position) && currentMouseState.LeftButton == ButtonState.Pressed && previousMouseState.LeftButton == ButtonState.Released)
+                    {
+                        selectedMenuIndex = i;
+                        if (i == 0) // Start
+                        {
+                            inputSessionName = "";
+                            menuState = MainMenuState.InputName;
+                        }
+                        else if (i == 1) // Scores
+                        {
+                            menuState = MainMenuState.Scores;
+                        }
+                        else if (i == 2) // Creditos
+                        {
+                            menuState = MainMenuState.Credits;
+                        }
+                    }
+                }
+
+                // Teclado: Enter
+                if (currentKeyboardState.IsKeyDown(Keys.Enter) && previousKeyboardState.IsKeyUp(Keys.Enter))
+                {
+                    if (selectedMenuIndex == 0) // Start
+                    {
+                        inputSessionName = "";
+                        menuState = MainMenuState.InputName;
+                    }
+                    else if (selectedMenuIndex == 1) // Scores
+                    {
+                        menuState = MainMenuState.Scores;
+                    }
+                    else if (selectedMenuIndex == 2) // Creditos
+                    {
+                        menuState = MainMenuState.Credits;
+                    }
+                }
+
+                previousKeyboardState = currentKeyboardState;
+                previousMouseState = currentMouseState;
+                return;
+            }
+
+
+            // INPUT DE NOME DA SESSÃO
+            if (menuState == MainMenuState.InputName)
+            {
+                foreach (var key in currentKeyboardState.GetPressedKeys())
+                {
+                    if (previousKeyboardState.IsKeyUp(key))
+                    {
+                        if (key == Keys.Back && inputSessionName.Length > 0)
+                            inputSessionName = inputSessionName.Substring(0, inputSessionName.Length - 1);
+                        else if (key == Keys.Enter && inputSessionName.Length > 0)
+                        {
+                            sessionName = inputSessionName;
+                            menuState = MainMenuState.Playing;
+                            ResetGame();
+                        }
+                        else if (key == Keys.Escape)
+                        {
+                            menuState = MainMenuState.Menu;
+                        }
+                        else
+                        {
+                            string c = key.ToString();
+                            if (c.Length == 1 && inputSessionName.Length < 12)
+                                inputSessionName += c;
+                            else if (key >= Keys.A && key <= Keys.Z && inputSessionName.Length < 12)
+                                inputSessionName += c;
+                            else if (key >= Keys.D0 && key <= Keys.D9 && inputSessionName.Length < 12)
+                                inputSessionName += (char)('0' + (key - Keys.D0));
+                            else if (key == Keys.Space && inputSessionName.Length < 12)
+                                inputSessionName += " ";
+                        }
+                    }
+                }
+                cursorBlinkTimer += gameTime.ElapsedGameTime.TotalSeconds;
+                if (cursorBlinkTimer > 0.5)
+                {
+                    showInputCursor = !showInputCursor;
+                    cursorBlinkTimer = 0;
+                }
+                previousKeyboardState = currentKeyboardState;
+                return;
+            }
+
+            // SCORES E CRÉDITOS
+            if (menuState == MainMenuState.Scores || menuState == MainMenuState.Credits)
+            {
+                if (currentKeyboardState.IsKeyDown(Keys.Escape) && previousKeyboardState.IsKeyUp(Keys.Escape))
+                    menuState = MainMenuState.Menu;
+                previousKeyboardState = currentKeyboardState;
+                return;
+            }
+
+            previousKeyboardState = currentKeyboardState;
+
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
                 Exit();
 
+            // Atualiza os timers
+            double delta = gameTime.ElapsedGameTime.TotalSeconds;
+            sessionTimer += delta;
+            if (!gameEnded)
+                gameTimer += delta;
+
+            // Mensagem de fase temporária
+            if (showPhaseMessage)
+            {
+                phaseMessageTimer -= (float)delta;
+                if (phaseMessageTimer <= 0)
+                    showPhaseMessage = false;
+            }
+
+            if (gameEnded)
+            {
+                int score = levelManager.EnemiesKilled * 100 - (int)gameTimer;
+                if (score < 0) score = 0;
+                scores.Add((sessionName, score, levelManager.EnemiesKilled, (int)gameTimer));
+                SalvarScoreNoArquivo(sessionName, score, levelManager.EnemiesKilled, (int)gameTimer);
+                menuState = MainMenuState.Menu;
+                previousKeyboardState = currentKeyboardState;
+                return;
+            }
+
+
             switch (currentState)
             {
-                case GameState.GameState.SafeHouse:
-                    UpdateSafeHouse(gameTime);
-                    break;
-                case GameState.GameState.CombatPhase1:
-                case GameState.GameState.WeaponChoice:
-                case GameState.GameState.CombatPhase3:
+                case Gamestate.Phase1:
+                case Gamestate.Phase2:
+                case Gamestate.Phase3:
+                case Gamestate.Phase4:
+                case Gamestate.Phase5:
                     UpdateLevelPhases(gameTime);
                     break;
-                case GameState.GameState.LevelComplete:
+                case Gamestate.LevelComplete:
                     UpdateLevelComplete(gameTime);
                     break;
             }
 
-            // Coin pickup logic
-            for (int i = levelManager.Coins.Count - 1; i >= 0; i--)
-            {
-                var coin = levelManager.Coins[i];
-                float distance = Vector2.Distance(
-                    player.Position + new Vector2(playerTexture.Width / 2, playerTexture.Height / 2),
-                    coin.Position + new Vector2(coin.Size / 2, coin.Size / 2)
-                );
-                if (!coin.Collected && distance <= player.CoinPickupRange)
-                {
-                    player.Coins += coin.Value;
-                    coin.Collected = true;
-                    levelManager.Coins.RemoveAt(i);
-                }
-            }
-
-            // --- Weapon orbit and firing logic ---
+            // --- Weapon orbit and contact damage logic ---
             foreach (var weapon in playerWeapons)
             {
                 weapon.Update(player.Position, (float)gameTime.ElapsedGameTime.TotalSeconds);
 
-                weapon.FireTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
-                float fireInterval = 1f / weapon.FireRate;
+                // Colisão da espada com inimigos
+                Rectangle weaponRect = new Rectangle(
+                    (int)(player.Position.X + weapon.Offset.X),
+                    (int)(player.Position.Y + weapon.Offset.Y),
+                    weapon.Texture.Width * 2, // 2x scale
+                    weapon.Texture.Height * 2 // 2x scale
+                );
 
-                if (weapon.FireTimer >= fireInterval)
+                foreach (var enemy in levelManager.Enemies)
                 {
-                    // Find nearest enemy
-                    Enemy nearest = null;
-                    float minDist = float.MaxValue;
-                    foreach (var enemy in levelManager.Enemies)
-                    {
-                        if (!enemy.IsAlive) continue;
-                        float dist = Vector2.Distance(player.Position + weapon.Offset, enemy.Position + new Vector2(enemy.Size / 2, enemy.Size / 2));
-                        if (dist < minDist)
-                        {
-                            minDist = dist;
-                            nearest = enemy;
-                        }
-                    }
+                    Rectangle enemyRect = new Rectangle(
+                        (int)enemy.Position.X,
+                        (int)enemy.Position.Y,
+                        enemy.Size,
+                        enemy.Size
+                    );
 
-                    if (nearest != null)
+                    if (enemy.IsAlive && weaponRect.Intersects(enemyRect))
                     {
-                        Vector2 firePos = player.Position + weapon.Offset;
-                        Vector2 target = nearest.Position + new Vector2(nearest.Size / 2, nearest.Size / 2);
-                        Vector2 direction = target - firePos;
-                        if (direction != Vector2.Zero)
-                            direction.Normalize();
-
-                        playerProjectiles.Add(new PlayerProjectile(
-                            firePos,
-                            direction,
-                            weapon.ProjectileSpeed,
-                            weapon.Damage,
-                            weapon.CritChance,
-                            weapon.EffectDuration,
-                            weapon.EffectDescription,
-                            weapon.OnHitEffect
-                        ));
+                        enemy.TakeDamage(weapon.Damage);
+                        swordSound?.Play();
+                        // Opcional: cooldown para não causar dano múltiplo por frame
                     }
-                    weapon.FireTimer = 0f;
                 }
             }
 
-            // --- Update and collision for player projectiles ---
-            for (int i = playerProjectiles.Count - 1; i >= 0; i--)
+            // --- Colisão do jogador com inimigos e projéteis ---
+            Rectangle playerRect = new Rectangle((int)player.Position.X, (int)player.Position.Y, 15 * 2, 27 * 2);
+            foreach (var enemy in levelManager.Enemies)
             {
-                var proj = playerProjectiles[i];
-                proj.Update(gameTime);
-                proj.CheckCollisionWithEnemies(levelManager.Enemies, random);
+                Rectangle enemyRect = new Rectangle((int)enemy.Position.X, (int)enemy.Position.Y, enemy.Size, enemy.Size);
 
-                // Remove if not active or off-screen
-                if (!proj.IsActive ||
-                    proj.Position.X < -proj.Size || proj.Position.X > GraphicsDevice.Viewport.Width + proj.Size ||
-                    proj.Position.Y < -proj.Size || proj.Position.Y > GraphicsDevice.Viewport.Height + proj.Size)
+                if (enemy.IsAlive && enemyRect.Intersects(playerRect))
                 {
-                    playerProjectiles.RemoveAt(i);
+                    player.TakeDamage(enemy.AttackDamage);
+                }
+
+                foreach (var proj in enemy.Projectiles)
+                {
+                    Rectangle projRect = new Rectangle((int)proj.Position.X, (int)proj.Position.Y, proj.Size, proj.Size);
+                    if (proj.IsActive && projRect.Intersects(playerRect))
+                    {
+                        player.TakeDamage(enemy.ProjectileDamage);
+                        proj.IsActive = false;
+                    }
+                }
+            }
+
+            // Reset se o player morrer
+            if (!player.IsAlive)
+            {
+                currentState = Gamestate.Phase1;
+                currentPhase = Phase.Phase1;
+                levelManager.EnemiesKilled = 0;
+                levelManager.Phase3Kills = 0;
+                levelManager.BossSpawned = false;
+                levelManager.Enemies.Clear();
+                player = new Player(new Vector2(
+                    GraphicsDevice.Viewport.Width / 2f - playerTexture.Width / 2f,
+                    GraphicsDevice.Viewport.Height / 2f - playerTexture.Height / 2f
+                ));
+                playerWeapons.Clear();
+                playerWeapons.Add(weapons[0]);
+                showPhaseMessage = true;
+                phaseMessage = "Fase 1";
+                phaseMessageTimer = 3.0f;
+                gameEnded = false;
+                gameTimer = 0; // Reinicia o timer de jogo
+                return;
+            }
+
+            // Regeneração de vida do player
+            player.Update(gameTime);
+            previousMouseState = currentMouseState;
+
+            // Atualiza projéteis de espada
+            for (int i = swordProjectiles.Count - 1; i >= 0; i--)
+            {
+                var proj = swordProjectiles[i];
+                proj.Update(gameTime);
+
+                // Colisão com inimigos
+                foreach (var enemy in levelManager.Enemies)
+                {
+                    if (enemy.IsAlive && proj.IsActive)
+                    {
+                        Rectangle projRect = new Rectangle((int)proj.Position.X, (int)proj.Position.Y, proj.Texture.Width, proj.Texture.Height);
+                        Rectangle enemyRect = new Rectangle((int)enemy.Position.X, (int)enemy.Position.Y, enemy.Size, enemy.Size);
+                        if (projRect.Intersects(enemyRect))
+                        {
+                            enemy.TakeDamage(proj.Damage);
+                            proj.IsActive = false;
+                        }
+                    }
+                }
+
+                // Remove projétil se sair da tela ou colidir
+                if (!proj.IsActive ||
+                    proj.Position.X < 0 || proj.Position.X > GraphicsDevice.Viewport.Width ||
+                    proj.Position.Y < 0 || proj.Position.Y > GraphicsDevice.Viewport.Height)
+                {
+                    swordProjectiles.RemoveAt(i);
                 }
             }
 
             base.Update(gameTime);
         }
 
-        private void UpdateSafeHouse(GameTime gameTime)
+        //Metodo para salvar a Score num arquivo de texto 
+        private void SalvarScoreNoArquivo(string nome, int score, int inimigos, int tempo)
         {
-            levelManager.Enemies.Clear();
+            string linha = $"{nome};{score};{inimigos};{tempo}";
+            string caminho = "scores.txt";
+            try
+            {
+                File.AppendAllText(caminho, linha + Environment.NewLine);
+            }
+            catch (Exception ex)
+            {
+                // Opcional: tratar erro de escrita
+            }
+        }
+
+
+        private void ResetGame()
+        {
+            currentState = Gamestate.Phase1;
+            currentPhase = Phase.Phase1;
             levelManager.EnemiesKilled = 0;
             levelManager.Phase3Kills = 0;
             levelManager.BossSpawned = false;
-            levelManager.Coins.Clear();
-            portal.Active = false;
-            currentPhase = Phase.Phase1;
+            levelManager.Enemies.Clear();
+            player = new Player(new Vector2(
+                GraphicsDevice.Viewport.Width / 2f - playerTexture.Width / 2f,
+                GraphicsDevice.Viewport.Height / 2f - playerTexture.Height / 2f
+            ));
+            playerWeapons.Clear();
+            playerWeapons.Add(weapons[0]);
+            showPhaseMessage = true;
+            phaseMessage = "Fase 1";
+            phaseMessageTimer = 3.0f;
+            gameEnded = false;
+            gameTimer = 0;
+            sessionTimer = 0;
+            phase1Kills = 0;
+            phase2Kills = 0;
 
-            if (Keyboard.GetState().IsKeyDown(Keys.Enter))
-            {
-                currentState = GameState.GameState.CombatPhase1;
-                currentPhase = Phase.Phase1;
-            }
-
-            if (portal.Active)
-            {
-                if (Keyboard.GetState().IsKeyDown(Keys.N))
-                {
-                    if (levelManager.CurrentLevel < 2)
-                        levelManager.CurrentLevel++;
-                    currentState = GameState.GameState.SafeHouse;
-                }
-                if (Keyboard.GetState().IsKeyDown(Keys.B))
-                {
-                    if (levelManager.CurrentLevel > 1)
-                        levelManager.CurrentLevel--;
-                    currentState = GameState.GameState.SafeHouse;
-                }
-            }
         }
 
         private void UpdateLevelPhases(GameTime gameTime)
@@ -344,97 +563,217 @@ namespace BulletStorm
                 case Phase.Phase1:
                     UpdatePlayerMovement(gameTime);
                     spawnTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
-                    if (spawnTimer >= spawnInterval && levelManager.Enemies.Count < 10)
+                    if (spawnTimer >= spawnInterval && levelManager.Enemies.Count < GetMaxEnemiesForPhase())
                     {
                         SpawnRandomEnemy();
                         spawnTimer = 0f;
                     }
                     for (int i = levelManager.Enemies.Count - 1; i >= 0; i--)
                     {
-                        levelManager.Enemies[i].Update(player.Position, gameTime, projectileTexture, levelManager.Enemies);
-                        if (!levelManager.Enemies[i].IsAlive)
+                        levelManager.Enemies[i].Update(player.Position, gameTime, projectileTexture, (int)currentPhase + 1, levelManager.Enemies);
+                        if (!levelManager.Enemies[i].IsAlive && !levelManager.Enemies[i].IsDying)
                         {
-                            for (int c = 0; c < levelManager.Enemies[i].CoinsDropped; c++)
-                            {
-                                Vector2 coinPos = levelManager.Enemies[i].Position + new Vector2(random.Next(-8, 8), random.Next(-8, 8));
-                                levelManager.Coins.Add(new Coin(coinPos));
-                            }
+                            levelManager.Enemies[i].StartDying();
+                        }
+                        if (levelManager.Enemies[i].IsDying && levelManager.Enemies[i].DeathFade <= 0f)
+                        {
                             levelManager.Enemies.RemoveAt(i);
                             levelManager.EnemiesKilled++;
+                            phase1Kills++;
                         }
                     }
-                    if (levelManager.EnemiesKilled >= 50)
+                    if (phase1Kills >= 20)
                     {
                         levelManager.Enemies.Clear();
-                        currentPhase = Phase.WeaponChoice;
-                        currentState = GameState.GameState.WeaponChoice;
+                        currentPhase = Phase.Phase2;
+                        phaseMessage = "Fase 2";
+                        phaseMessageTimer = 3.0f;
+                        showPhaseMessage = true;
+                        phase2Kills = 0; // reset para a próxima fase
                     }
                     break;
 
-                case Phase.WeaponChoice:
-                    var state = Keyboard.GetState();
-                    if (state.IsKeyDown(Keys.D1) || state.IsKeyDown(Keys.D2) || state.IsKeyDown(Keys.D3))
+                case Phase.Phase2:
+                    UpdatePlayerMovement(gameTime);
+
+                    // Garante que o jogador só ganha uma nova arma uma vez
+                    if (playerWeapons.Count < 2)
                     {
-                        currentPhase = Phase.Phase3;
-                        currentState = GameState.GameState.CombatPhase3;
-                        levelManager.Phase3Kills = 0;
-                        levelManager.BossSpawned = false;
+                        int idx;
+                        do
+                        {
+                            idx = random.Next(weapons.Count);
+                        } while (playerWeapons.Contains(weapons[idx]));
+                        playerWeapons.Add(weapons[idx]);
+                    }
+
+                    // Spawn e atualização dos inimigos
+                    spawnTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
+                    if (spawnTimer >= spawnInterval && levelManager.Enemies.Count < GetMaxEnemiesForPhase())
+                    {
+                        SpawnRandomEnemy();
+                        spawnTimer = 0f;
+                    }
+                    for (int i = levelManager.Enemies.Count - 1; i >= 0; i--)
+                    {
+                        levelManager.Enemies[i].Update(player.Position, gameTime, projectileTexture, (int)currentPhase + 1, levelManager.Enemies);
+                        if (!levelManager.Enemies[i].IsAlive && !levelManager.Enemies[i].IsDying)
+                        {
+                            levelManager.Enemies[i].StartDying();
+                        }
+                        if (levelManager.Enemies[i].IsDying && levelManager.Enemies[i].DeathFade <= 0f)
+                        {
+                            levelManager.Enemies.RemoveAt(i);
+                            levelManager.EnemiesKilled++;
+                            phase2Kills++;
+                        }
+                    }
+
+                    // Só avança para a Phase3 após 30 kills nesta fase
+                    if (phase2Kills >= 30)
+                    {
                         levelManager.Enemies.Clear();
+                        currentPhase = Phase.Phase3;
+                        phaseMessage = "Fase 3";
+                        phaseMessageTimer = 3.0f;
+                        showPhaseMessage = true;
+                        levelManager.Phase3Kills = 0;
                     }
                     break;
 
                 case Phase.Phase3:
                     UpdatePlayerMovement(gameTime);
-                    if (levelManager.Phase3Kills < 100)
+
+                    // Boost só uma vez ao entrar na Fase 3
+                    if (!boostFase3Aplicado)
                     {
-                        spawnTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
-                        if (spawnTimer >= spawnInterval && levelManager.Enemies.Count < 10)
+                        int boostType = random.Next(4);
+                        switch (boostType)
                         {
-                            SpawnRandomEnemy();
-                            spawnTimer = 0f;
+                            case 0:
+                                player.UpgradeAttackDamage(1);
+                                boostMessage = "Boost: +1 Dano!";
+                                break;
+                            case 1:
+                                player.UpgradeAttackSpeed(0.3f);
+                                boostMessage = "Boost: +0.3 Velocidade de Ataque!";
+                                break;
+                            case 2:
+                                player.UpgradeAttackCritChance(0.1f);
+                                boostMessage = "Boost: +10% Chance de Critico!";
+                                break;
+                            case 3:
+                                player.UpgradeHealth(2);
+                                boostMessage = "Boost: +2 Vida Maxima!";
+                                break;
                         }
-                        for (int i = levelManager.Enemies.Count - 1; i >= 0; i--)
+                        boostMessageTimer = 3.0; // 3 segundos
+                        boostFase3Aplicado = true;
+                    }
+                    else
+                    {
+                        boostMessageTimer -= gameTime.ElapsedGameTime.TotalSeconds;
+                        if (boostMessageTimer <= 0)
                         {
-                            levelManager.Enemies[i].Update(player.Position, gameTime, projectileTexture, levelManager.Enemies);
-                            if (!levelManager.Enemies[i].IsAlive)
-                            {
-                                for (int c = 0; c < levelManager.Enemies[i].CoinsDropped; c++)
-                                {
-                                    Vector2 coinPos = levelManager.Enemies[i].Position + new Vector2(random.Next(-8, 8), random.Next(-8, 8));
-                                    levelManager.Coins.Add(new Coin(coinPos));
-                                }
-                                levelManager.Enemies.RemoveAt(i);
-                                levelManager.Phase3Kills++;
-                            }
+                            boostMessage = "";
                         }
                     }
-                    else if (!levelManager.BossSpawned)
+
+                    // --- Adicione o spawn de inimigos aqui ---
+                    spawnTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
+                    if (spawnTimer >= spawnInterval && levelManager.Enemies.Count < GetMaxEnemiesForPhase())
+                    {
+                        SpawnRandomEnemy();
+                        spawnTimer = 0f;
+                    }
+
+                    for (int i = levelManager.Enemies.Count - 1; i >= 0; i--)
+                    {
+                        levelManager.Enemies[i].Update(player.Position, gameTime, projectileTexture, (int)currentPhase + 1, levelManager.Enemies);
+                        if (!levelManager.Enemies[i].IsAlive && !levelManager.Enemies[i].IsDying)
+                        {
+                            levelManager.Enemies[i].StartDying();
+                        }
+                        if (levelManager.Enemies[i].IsDying && levelManager.Enemies[i].DeathFade <= 0f)
+                        {
+                            levelManager.Enemies.RemoveAt(i);
+                            levelManager.EnemiesKilled++;
+                            levelManager.Phase3Kills++;
+                        }
+                    }
+                    if (levelManager.Phase3Kills > 30) // ou >= 31, conforme sua regra
+                    {
+                        currentPhase = Phase.Phase4;
+                        phaseMessage = "Fase 4";
+                        phaseMessageTimer = 3.0f;
+                        showPhaseMessage = true;
+                    }
+                    break;
+
+                case Phase.Phase4:
+                    UpdatePlayerMovement(gameTime);
+
+                    // Spawn de inimigos (igual à Phase1, mas pode customizar se quiser)
+                    spawnTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
+                    if (spawnTimer >= spawnInterval && levelManager.Enemies.Count < GetMaxEnemiesForPhase())
+                    {
+                        SpawnRandomEnemy();
+                        spawnTimer = 0f;
+                    }
+
+                    for (int i = levelManager.Enemies.Count - 1; i >= 0; i--)
+                    {
+                        levelManager.Enemies[i].Update(player.Position, gameTime, projectileTexture, (int)currentPhase + 1, levelManager.Enemies);
+                        if (!levelManager.Enemies[i].IsAlive && !levelManager.Enemies[i].IsDying)
+                        {
+                            levelManager.Enemies[i].StartDying();
+                        }
+                        if (levelManager.Enemies[i].IsDying && levelManager.Enemies[i].DeathFade <= 0f)
+                        {
+                            levelManager.Enemies.RemoveAt(i);
+                            levelManager.EnemiesKilled++;
+                        }
+                    }
+
+                    // Quando matar 60 inimigos, avança para a próxima fase
+                    if (levelManager.EnemiesKilled >= 60)
+                    {
+                        levelManager.Enemies.Clear();
+                        currentPhase = Phase.Phase5;
+                        levelManager.BossSpawned = false;
+                        phaseMessage = "Fase 5";
+                        phaseMessageTimer = 3.0f;
+                        showPhaseMessage = true;
+                    }
+                    break;
+
+                case Phase.Phase5:
+                    UpdatePlayerMovement(gameTime);
+                    if (!levelManager.BossSpawned)
                     {
                         Vector2 bossPos = new Vector2(GraphicsDevice.Viewport.Width / 2, 50);
-                        EnemyType bossType = (levelManager.CurrentLevel == 1) ? EnemyType.OgreBoss : EnemyType.VampiroBoss;
-                        levelManager.Enemies.Add(new Enemy(bossPos, 40f, 100, bossType));
+                        EnemyType bossType = random.Next(2) == 0 ? EnemyType.OgreBoss : EnemyType.VampiroBoss;
+                        levelManager.Enemies.Add(new Enemy(bossPos, 40f, 1000, bossType, 5));
                         levelManager.BossSpawned = true;
                     }
                     else
                     {
                         for (int i = levelManager.Enemies.Count - 1; i >= 0; i--)
                         {
-                            levelManager.Enemies[i].Update(player.Position, gameTime, projectileTexture, levelManager.Enemies);
-                            if (!levelManager.Enemies[i].IsAlive)
+                            levelManager.Enemies[i].Update(player.Position, gameTime, projectileTexture, (int)currentPhase + 1,levelManager.Enemies);
+                            if (!levelManager.Enemies[i].IsAlive && !levelManager.Enemies[i].IsDying)
                             {
-                                for (int c = 0; c < levelManager.Enemies[i].CoinsDropped; c++)
-                                {
-                                    Vector2 coinPos = levelManager.Enemies[i].Position + new Vector2(random.Next(-8, 8), random.Next(-8, 8));
-                                    levelManager.Coins.Add(new Coin(coinPos));
-                                }
+                                levelManager.Enemies[i].StartDying();
+                            }
+                            if (levelManager.Enemies[i].IsDying && levelManager.Enemies[i].DeathFade <= 0f)
+                            {
                                 levelManager.Enemies.RemoveAt(i);
                                 currentPhase = Phase.LevelComplete;
-                                currentState = GameState.GameState.LevelComplete;
-                                portal.Active = true;
-                                portal.Rect = new Rectangle(
-                                    (int)(GraphicsDevice.Viewport.Width / 2 - 32),
-                                    (int)(GraphicsDevice.Viewport.Height / 2 - 32),
-                                    64, 64);
+                                currentState = Gamestate.LevelComplete;
+                                phaseMessage = "Parabens! Você completou todas as fases!";
+                                phaseMessageTimer = float.MaxValue;
+                                showPhaseMessage = true;
+                                gameEnded = true;
                             }
                         }
                     }
@@ -442,27 +781,23 @@ namespace BulletStorm
             }
         }
 
+
         private void UpdateLevelComplete(GameTime gameTime)
         {
             UpdatePlayerMovement(gameTime);
 
-            Rectangle playerRect = new Rectangle(
-                (int)player.Position.X, (int)player.Position.Y,
-                playerTexture.Width, playerTexture.Height);
-
-            if (portal.Active && portal.Intersects(playerRect))
+            if (Keyboard.GetState().GetPressedKeys().Length > 0)
             {
-                var state = Keyboard.GetState();
-                if (state.IsKeyDown(Keys.N) && levelManager.CurrentLevel < 2)
-                {
-                    levelManager.CurrentLevel++;
-                    currentState = GameState.GameState.SafeHouse;
-                }
-                else if (state.IsKeyDown(Keys.B) && levelManager.CurrentLevel > 1)
-                {
-                    levelManager.CurrentLevel--;
-                    currentState = GameState.GameState.SafeHouse;
-                }
+                currentState = Gamestate.Phase1;
+                currentPhase = Phase.Phase1;
+                levelManager.EnemiesKilled = 0;
+                levelManager.Phase3Kills = 0;
+                levelManager.BossSpawned = false;
+                levelManager.Enemies.Clear();
+                phaseMessage = "Fase 1";
+                phaseMessageTimer = 3.0f;
+                showPhaseMessage = true;
+                gameEnded = false;
             }
         }
 
@@ -477,47 +812,51 @@ namespace BulletStorm
             if (keyboardState.IsKeyDown(Keys.D)) movement.X += 1;
 
             float delta = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            player.Move(movement, delta, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height, playerTexture.Width, playerTexture.Height);
+
+            int frameWidth = 15;
+            int frameHeight = 27;
+
+            player.Move(
+                movement,
+                delta,
+                GraphicsDevice.Viewport.Width,
+                GraphicsDevice.Viewport.Height,
+                frameWidth,
+                frameHeight
+            );
         }
+
+        // Dificuldade progressiva: menos inimigos no início, mais a cada fase
+        private int GetMaxEnemiesForPhase()
+        {
+            int phaseNum = (int)currentPhase + 1;
+            if (phaseNum >= 3)
+                return 12 + (phaseNum - 3) * 4; // Mais inimigos a partir da fase 3
+            else
+                return 4 + (phaseNum - 1) * 3;
+        }
+
 
         private void SpawnRandomEnemy()
         {
             EnemyType[] types;
+            int phaseNum = (int)currentPhase + 1;
 
-            if (levelManager.CurrentLevel == 1)
-            {
-                if (currentPhase == Phase.Phase1)
-                {
-                    types = new EnemyType[]
-                    {
-                        EnemyType.Slime, EnemyType.SlimeAgua, EnemyType.SlimeFogo
-                    };
-                }
-                else if (currentPhase == Phase.WeaponChoice)
-                {
-                    types = new EnemyType[]
-                    {
-                        EnemyType.Slime, EnemyType.SlimeAgua, EnemyType.SlimeFogo,
-                        EnemyType.Ogre, EnemyType.OgreWarrior
-                    };
-                }
-                else // Phase3
-                {
-                    types = new EnemyType[]
-                    {
-                        EnemyType.Slime, EnemyType.SlimeAgua, EnemyType.SlimeFogo,
-                        EnemyType.Ogre, EnemyType.OgreWarrior,
-                        EnemyType.Vampiro, EnemyType.VampiroWarrior
-                    };
-                }
-            }
-            else // currentLevel == 2
+            if (currentPhase == Phase.Phase1 || currentPhase == Phase.Phase2)
             {
                 types = new EnemyType[]
                 {
-                    EnemyType.Slime, EnemyType.SlimeAgua, EnemyType.SlimeFogo,
-                    EnemyType.Ogre, EnemyType.OgreWarrior,
-                    EnemyType.Vampiro, EnemyType.VampiroWarrior
+                    EnemyType.Slime, EnemyType.SlimeFogo
+                   
+                };
+            }
+            else
+            {
+                types = new EnemyType[]
+                {
+                    EnemyType.Slime, EnemyType.SlimeFogo,
+                    EnemyType.Ogre,
+                    EnemyType.Vampiro
                 };
             }
 
@@ -526,39 +865,149 @@ namespace BulletStorm
                 random.Next(0, GraphicsDevice.Viewport.Width - 32),
                 random.Next(0, GraphicsDevice.Viewport.Height - 32)
             );
-            float speed = 80f + random.Next(-20, 20);
-            int health = 2 + random.Next(3);
+            float speed = 80f + random.Next(-20, 20) + phaseNum * 5;
+            int health = 8 + random.Next(3) + phaseNum * 3; // Mais vida base
 
-            levelManager.Enemies.Add(new Enemy(pos, speed, health, type));
+            levelManager.Enemies.Add(new Enemy(pos, speed, health, type, phaseNum));
         }
 
+        
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
-
             _spriteBatch.Begin();
 
+            SpriteFont font = Content.Load<SpriteFont>("DefaultFont");
+
+            // MENU PRINCIPAL
+            if (menuState == MainMenuState.Menu)
+            {
+                string titulo = "BULLETSTORM";
+                Vector2 tituloSize = font.MeasureString(titulo);
+                _spriteBatch.DrawString(font, titulo, new Vector2(GraphicsDevice.Viewport.Width / 2 - tituloSize.X / 2, 60), Color.White);
+
+                for (int i = 0; i < menuOptions.Length; i++)
+                {
+                    Color color = (i == selectedMenuIndex) ? Color.Yellow : Color.White;
+                    string text = menuOptions[i];
+                    Vector2 size = font.MeasureString(text);
+                    Rectangle rect = new Rectangle(GraphicsDevice.Viewport.Width / 2 - 100, 150 + i * 60, 200, 50);
+                    _spriteBatch.Draw(enemyTexture, rect, color * 0.2f);
+                    _spriteBatch.DrawString(font, text, new Vector2(GraphicsDevice.Viewport.Width / 2 - size.X / 2, 165 + i * 60), color);
+                }
+                _spriteBatch.End();
+                return;
+            }
+
+            // INPUT DE NOME
+            if (menuState == MainMenuState.InputName)
+            {
+                string prompt = "Digite o nome da sessao:";
+                Vector2 promptSize = font.MeasureString(prompt);
+                _spriteBatch.DrawString(font, prompt, new Vector2(GraphicsDevice.Viewport.Width / 2 - promptSize.X / 2, 180), Color.White);
+
+                string displayName = inputSessionName + (showInputCursor ? "|" : "");
+                Vector2 nameSize = font.MeasureString(displayName);
+                _spriteBatch.DrawString(font, displayName, new Vector2(GraphicsDevice.Viewport.Width / 2 - nameSize.X / 2, 240), Color.Yellow);
+                _spriteBatch.End();
+                return;
+            }
+
+            // SCORES
+            if (menuState == MainMenuState.Scores)
+            {
+                string titulo = "SCORES";
+                Vector2 tituloSize = font.MeasureString(titulo);
+                _spriteBatch.DrawString(font, titulo, new Vector2(GraphicsDevice.Viewport.Width / 2 - tituloSize.X / 2, 60), Color.White);
+
+                for (int i = 0; i < scores.Count; i++)
+                {
+                    string scoreText = $"{i + 1}. {scores[i].Name} - {scores[i].Score} pts - {scores[i].Enemies} inimigos - {TimeSpan.FromSeconds(scores[i].Time):mm\\:ss}";
+                    _spriteBatch.DrawString(font, scoreText, new Vector2(200, 120 + i * 30), Color.Yellow);
+                }
+                _spriteBatch.DrawString(font, "Pressione ESC para voltar", new Vector2(200, 400), Color.White);
+                _spriteBatch.End();
+                return;
+            }
+
+            // CRÉDITOS
+            if (menuState == MainMenuState.Credits)
+            {
+                string titulo = "CREDITOS";
+                Vector2 tituloSize = font.MeasureString(titulo);
+                _spriteBatch.DrawString(font, titulo, new Vector2(GraphicsDevice.Viewport.Width / 2 - tituloSize.X / 2, 60), Color.White);
+
+                float y = 120;
+                foreach (var line in creditLines)
+                {
+                    Vector2 size = font.MeasureString(line);
+                    _spriteBatch.DrawString(font, line, new Vector2(GraphicsDevice.Viewport.Width / 2 - size.X / 2, y), Color.Yellow);
+                    y += 28;
+                }
+
+                _spriteBatch.DrawString(font, "Pressione ESC para voltar", new Vector2(200, 500), Color.White);
+                _spriteBatch.End();
+                return;
+            }
+
+
+            // --- JOGO NORMAL ---
             _gameplayScreen.Draw(_spriteBatch);
+
+            if (!string.IsNullOrEmpty(boostMessage))
+            {
+                Vector2 size = font.MeasureString(boostMessage);
+                _spriteBatch.DrawString(
+                    font,
+                    boostMessage,
+                    new Vector2(GraphicsDevice.Viewport.Width / 2 - size.X / 2, 10),
+                    Color.Yellow
+                );
+            }
+
+            if (showPhaseMessage)
+            {
+                Vector2 size = font.MeasureString(phaseMessage);
+                _spriteBatch.DrawString(
+                    font,
+                    phaseMessage,
+                    new Vector2(GraphicsDevice.Viewport.Width / 2 - size.X / 2, 60),
+                    Color.White
+                );
+            }
+
+            // Desenha projéteis de espada
+            foreach (var swordProj in swordProjectiles)
+                swordProj.Draw(_spriteBatch);
 
             player.Draw(_spriteBatch, playerTexture);
 
             foreach (var weapon in playerWeapons)
                 weapon.Draw(_spriteBatch, player.Position);
 
-            foreach (var proj in playerProjectiles)
-                proj.Draw(_spriteBatch, projectileTexture);
-
             foreach (var enemy in levelManager.Enemies)
                 enemy.Draw(_spriteBatch, enemyTexture, projectileTexture);
 
-            foreach (var coin in levelManager.Coins)
-                coin.Draw(_spriteBatch, coinTexture);
+            // Barra de vida do player
+            float barWidth = 200f;
+            float barHeight = 20f;
+            float healthPercent = Math.Max(0, Math.Min(1, (float)player.Health / player.MaxHealth));
+            Rectangle healthBarBg = new Rectangle((GraphicsDevice.Viewport.Width - (int)barWidth) / 2, GraphicsDevice.Viewport.Height - 40, (int)barWidth, (int)barHeight);
+            Rectangle healthBar = new Rectangle(healthBarBg.X, healthBarBg.Y, (int)(barWidth * healthPercent), (int)barHeight);
+            _spriteBatch.Draw(enemyTexture, healthBarBg, Color.DarkRed);
+            _spriteBatch.Draw(enemyTexture, healthBar, Color.LimeGreen);
 
-            portal.Draw(_spriteBatch);
+            // Timers
+            string gameTimeStr = $"Tempo de Jogo: {TimeSpan.FromSeconds(gameTimer):mm\\:ss}";
+            string sessionTimeStr = $"Tempo de Sessao: {TimeSpan.FromSeconds(sessionTimer):hh\\:mm\\:ss}";
+            _spriteBatch.DrawString(font, gameTimeStr, new Vector2(10, 10), Color.White);
+            _spriteBatch.DrawString(font, sessionTimeStr, new Vector2(10, 35), Color.White);
 
             _spriteBatch.End();
 
             base.Draw(gameTime);
         }
+
     }
 }
+    

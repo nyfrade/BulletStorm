@@ -7,8 +7,7 @@ namespace BulletStorm.Entities
 {
     public enum WeaponType
     {
-        Sword,
-        Gun
+        Sword
     }
 
     public enum WeaponRarity
@@ -30,15 +29,14 @@ namespace BulletStorm.Entities
         public Texture2D Texture;
 
         // Stats
-        public float FireRate = 1.0f;      // Shots per second
+        public float FireRate = 1.0f;
         public int Damage = 1;
         public float ProjectileSpeed = 400f;
-        public float CritChance = 0.0f;    // 0.0 - 1.0
-        public float EffectDuration = 0f;  // For status effects
+        public float CritChance = 0.0f;
+        public float EffectDuration = 0f;
         public string EffectDescription = "";
         public float FireTimer = 0f;
 
-        // Optional: Custom effect delegate (implement in your projectile/enemy logic)
         public Action<Enemy> OnHitEffect;
 
         public Weapon(string name, WeaponType type, Texture2D texture, float angle)
@@ -51,24 +49,25 @@ namespace BulletStorm.Entities
 
         public void Update(Vector2 playerPosition, float delta)
         {
-            Angle += delta;
+            Angle += 2.0f * delta;
             Offset = new Vector2(
                 (float)Math.Cos(Angle) * OrbitRadius,
                 (float)Math.Sin(Angle) * OrbitRadius
             );
+
+
         }
 
         public void Draw(SpriteBatch spriteBatch, Vector2 playerPosition)
         {
-            spriteBatch.Draw(Texture, playerPosition + Offset, Color.White);
+            // Desenha a espada com o dobro do tamanho
+            spriteBatch.Draw(Texture, playerPosition + Offset, null, Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, 0f);
         }
 
-        // Factory method to create all weapons (textures must be loaded in Game1 and passed in)
-        public static List<Weapon> CreateAllWeapons(Texture2D[] swordTextures, Texture2D[] gunTextures)
+        public static List<Weapon> CreateAllWeapons(Texture2D[] swordTextures)
         {
             var weapons = new List<Weapon>();
 
-            // --- BASIC STARTER WEAPONS ---
             weapons.Add(new Weapon("Blaze Edge", WeaponType.Sword, swordTextures[0], 0f)
             {
                 Rarity = WeaponRarity.B,
@@ -93,19 +92,6 @@ namespace BulletStorm.Entities
                 EffectDescription = ""
             });
 
-            weapons.Add(new Weapon("Pulse Blaster", WeaponType.Gun, gunTextures[0], MathF.PI * 2 / 3)
-            {
-                Rarity = WeaponRarity.B,
-                OrbitRadius = 80f,
-                FireRate = 1.5f,
-                Damage = 1,
-                ProjectileSpeed = 500f,
-                CritChance = 0.05f,
-                EffectDuration = 0f,
-                EffectDescription = ""
-            });
-
-            // --- ADVANCED SWORDS ---
             weapons.Add(new Weapon("Thunderbrand", WeaponType.Sword, swordTextures[2], MathF.PI * 4 / 6)
             {
                 Rarity = WeaponRarity.A,
@@ -154,34 +140,11 @@ namespace BulletStorm.Entities
                 EffectDescription = "Steals a small amount of health"
             });
 
-            // --- ADVANCED GUNS ---
-            weapons.Add(new Weapon("Void Cannon", WeaponType.Gun, gunTextures[1], MathF.PI * 4 / 3)
-            {
-                Rarity = WeaponRarity.S,
-                OrbitRadius = 90f,
-                FireRate = 1.8f,
-                Damage = 4,
-                ProjectileSpeed = 550f,
-                CritChance = 0.12f,
-                EffectDuration = 1.5f,
-                EffectDescription = "Creates a small explosion on hit"
-            });
-
-            weapons.Add(new Weapon("Star Piercer", WeaponType.Gun, gunTextures[2], MathF.PI * 6 / 3)
-            {
-                Rarity = WeaponRarity.SS,
-                OrbitRadius = 100f,
-                FireRate = 3.0f,
-                Damage = 1,
-                ProjectileSpeed = 700f,
-                CritChance = 0.25f,
-                EffectDuration = 0f,
-                EffectDescription = "High crit chance, pierces through enemies"
-            });
-
             return weapons;
         }
-
     }
 }
+
+
+
 
