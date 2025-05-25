@@ -4,7 +4,7 @@ BulletStorm é um jogo **roguelike** desenvolvido com **MonoGame** (.NET 8), foc
 
 ## 🧠 Desenvolvedores
 - Anthony Frade (31477)  
-- Valeska Naia (31481)
+- Valezka Naia (31481)
 
 ## 🕹️ Controles
 
