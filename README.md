@@ -1,5 +1,6 @@
 # 🎮 BulletStorm
 BulletStorm é um jogo **roguelike** desenvolvido com **MonoGame** (.NET 8), focado em ação rápida, progressão por fases e um sistema de pontuação baseado em performance. Enfrenta ondas de inimigos, sobrevive, melhora tuas habilidades e derrota o boss final.
+![BulletStorm Logo](Bulletstormlogo.png)
 
 ## 🧠 Desenvolvedores
 - Anthony Frade (31477)  
