@@ -99,7 +99,6 @@ BulletStorm is a **roguelike** game developed with **MonoGame** (.NET 8), focuse
 │   ├── Levels/               # LevelManager, Phase logic
 │   ├── Content/              # Game assets (images, audio, fonts)
 │   └── Utils/                # Helpers and scoring logic
-
-
+```
 ---
 This project was developed as part of an academic assignment for the game engineering and development course at IPCA.
