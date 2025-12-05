@@ -1,106 +1,105 @@
 # 🎮 BulletStorm
-BulletStorm é um jogo **roguelike** desenvolvido com **MonoGame** (.NET 8), focado em ação rápida, progressão por fases e um sistema de pontuação baseado em performance. Enfrenta ondas de inimigos, sobrevive, melhora tuas habilidades e derrota o boss final.
 
+BulletStorm is a **roguelike** game developed with **MonoGame** (.NET 8), focused on fast-paced action, level-based progression, and a performance-based scoring system. Face waves of enemies, survive, upgrade your skills, and defeat the final boss.
 
-## 🧠 Desenvolvedores
-- Anthony Frade (31477)  
+## 🧠 Developers
+- Anthony Frade (31477)
 - Valezka Naia (31481)
 
-## 🕹️ Controles
+## 🕹️ Controls
 
-| Tecla | Ação      |
-|-------|-----------|
-| W     | Mover para cima |
-| S     | Mover para baixo |
-| A     | Mover para a esquerda |
-| D     | Mover para a direita |
-| E     | Habilidade Especial |
-| F11   | Tela cheia |
-
----
-
-## 📦 Estrutura geral do projeto
-
-- Desenvolvido com **MonoGame (.NET 8)**.
-- Arquitetura baseada em **estados** (`Menu`, `InputName`, `Playing`, `Scores`, `Credits`).
-- Loop principal (`Game1`) gerencia a lógica, entrada de dados, desenho e transições.
+| Key | Action |
+|-----|--------|
+| W | Move Up |
+| S | Move Down |
+| A | Move Left |
+| D | Move Right |
+| E | Special Ability |
+| F11 | Fullscreen |
 
 ---
 
-## 🧭 Fluxo do jogo
+## 📦 General Project Structure
 
-1. **Menu inicial**
-   - Interface desenhada manualmente com retângulos e texto.
-   - Três opções: `Start`, `Scores`, `Créditos`.
-   - Navegação por teclado e rato
+- Developed using **MonoGame (.NET 8)**.
+- **State-based** architecture (`Menu`, `InputName`, `Playing`, `Scores`, `Credits`).
+- The main loop (`Game1`) manages logic, input handling, rendering, and transitions.
 
-2. **Input de nome**
-   - O jogador insere um nome (máx. 12 caracteres).
-   - Nome usado para salvar o score no final da sessão.
+---
+
+## 🧭 Game Flow
+
+1. **Main Menu**
+   - Custom interface drawn using primitives (rectangles) and text.
+   - Three options: `Start`, `Scores`, `Credits`.
+   - Navigation via keyboard and mouse.
+
+2. **Name Input**
+   - The player enters a name (max. 12 characters).
+   - The name is used to save the score at the end of the session.
 
 3. **Gameplay**
-   - O jogador enfrenta várias **fases** com ondas de inimigos e dificuldade crescente.
-   - Power-ups disponíveis em fases específicas (dano, vida, crit, velocidade).
-   - O boss final aparece na última fase.
+   - The player faces various **phases** with waves of enemies and increasing difficulty.
+   - Power-ups available in specific phases (Damage, Health, Crit Rate, Speed).
+   - The final boss appears in the last phase.
 
 4. **Score**
-   - Fórmula: `score = inimigos mortos * 100 - tempo (em segundos)`
-   - Score mínimo: 0
-   - Os resultados (nome, score, inimigos, tempo) são exibidos na tela de "Scores" (com persistência, através de um ficheiro .txt).
+   - Formula: `score = enemies killed * 100 - time (in seconds)`
+   - Minimum score: 0
+   - Results (Name, Score, Enemies, Time) are displayed on the "Scores" screen (with persistence via a local `.txt` file).
 
 ---
 
-## 🛠️ Decisões de implementação
+## 🛠️ Implementation Decisions
 
-- **Simples e funcional**: Interface feita sem bibliotecas externas.
-- **Separação e organização**: Classes distintas para `Player`, `Enemy`, `Weapon`, `LevelManager`, etc.
-- **Sistema de estados** limpo e intuitivo usando enums (`GameState`, `Phase`).
-- **Input de texto** básico (letras, números e espaços).
-- **Pontuação justa** que recompensa desempenho.
-
----
-
-## 🚀 Possíveis Melhorias Futuras
-
-- Melhorar o HUD e GUI
-- Animações e efeitos no menu.
-- Sistema de upgrades persistentes.
-- Personalização visual do jogador.
-- Mais tipos de inimigos e fases/níveis
-- Melhorar sprites
-- Adicionar várias personagens com habilidades diferentes ou armas diferentes e possivel edição do personagem
-- Construção de armas 
+- **Simple and Functional**: UI built without external libraries.
+- **Separation of Concerns**: Distinct classes for `Player`, `Enemy`, `Weapon`, `LevelManager`, etc.
+- **Clean State System**: Intuitive management using enums (`GameState`, `Phase`).
+- **Input Handling**: Basic text input system (letters, numbers, and spaces).
+- **Fair Scoring**: A system that rewards performance and efficiency.
 
 ---
 
-## 🧪 Como Jogar
+## 🚀 Future Improvements
 
-1. Compila o projeto com .NET 8 e MonoGame instalado.
-2. Executa o binário gerado ou roda direto da IDE (Visual Studio/JetBrains Rider).
-3. Usa os controles para navegar e jogar.
-
----
-
-## 🏁 Requisitos
-
-- .NET 8 SDK  
-- MonoGame Framework  
-- Sistema Windows (Linux/Mac podem precisar de configurações extra)
+- Improved HUD and GUI.
+- Animations and visual effects for the menu.
+- Persistent upgrade system.
+- Visual character customization.
+- More enemy types and phases/levels.
+- Enhanced sprite work.
+- Multiple characters with unique abilities/weapons and a character editor.
+- Weapon crafting system.
 
 ---
 
-## 📂 Organização do Código
+## 🧪 How to Play
+
+1. Compile the project with .NET 8 and MonoGame installed.
+2. Run the generated binary or execute directly from your IDE (Visual Studio/JetBrains Rider).
+3. Use the controls to navigate and play.
+
+---
+
+## 🏁 Requirements
+
+- .NET 8 SDK
+- MonoGame Framework
+- Windows OS (Linux/Mac may require additional configuration)
+
+---
+
+## 📂 Code Organization
 
 ```plaintext
 ├── BulletStorm/
-│   ├── Game1.cs              # Loop principal do jogo
-│   ├── States/               # Menu, Scores, Credits, Input
+│   ├── Game1.cs              # Main game loop
+│   ├── States/               # Menu, Scores, Credits, Input logic
 │   ├── Entities/             # Player, Enemy, Weapon, etc.
 │   ├── Levels/               # LevelManager, Phase logic
-│   ├── Content/              # Assets do jogo (imagens, sons, fontes)
-│   └── Utils/                # Helpers e lógica de pontuação
-```
+│   ├── Content/              # Game assets (images, audio, fonts)
+│   └── Utils/                # Helpers and scoring logic
+
 
 ---
-
-> Este projeto foi desenvolvido como parte de um trabalho académico no curso de Engenharia e Desenvolvimento de Jogos (IPCA).
+This project was developed as part of an academic assignment for the game engineering and development course at IPCA.
